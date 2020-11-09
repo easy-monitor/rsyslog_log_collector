@@ -1,0 +1,27 @@
+type: simple-script
+agentType: easyops
+
+name: rsyslog_log_collector
+version: 1.0.0
+
+category: OS系统
+
+command:
+  collect:
+    type: python
+    user: ""
+    interpreter: /usr/local/easyops/python/bin/python
+    scriptPath:
+    - src
+    - manager.py
+
+params:
+    - restart_cmd
+    - collect_file
+    - job_id
+    - rsyslog_conf_path
+    - easyops_server_ip
+    - easyops_server_port
+    - app_id
+    - business_id
+    - host_ip
