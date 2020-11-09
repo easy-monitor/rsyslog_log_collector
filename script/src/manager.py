@@ -35,17 +35,17 @@ $InputFileSeverity info
 $InputRunFileMonitor
 $InputFilePersistStateInterval 2000
 
-template(name="json_syslog"
-  type="list") {
-    constant(value="{")
+template(name="{template_name}"
+  type="list") {{
+    constant(value="{{")
       constant(value="\",\"business\":\"")           constant(value="\"{business_id}\"")
       constant(value="\",\"app\":\"")                constant(value="\"{app_id}\"")
       constant(value="\",\"host\":\"")               constant(value="\"{host_ip}\"")
       constant(value="\",\"log_file_path\":\"")      constant(value="\"{collect_file}\"")
 
       constant(value="\",\"message\":\"")            property(name="rawmsg" format="json")
-    constant(value="\"}\n")
-}
+    constant(value="\"}}\n")
+}}
 if $programname == '{input_tag}' then  @@{easyops_server_ip}:{easyops_server_port};{template_name}
 & ~
 '''
@@ -65,7 +65,7 @@ def restart_rsyslog(cmd="service rsyslog restart"):
 def run():
     common.log_setup()
 
-    template_name = "easyops-rsyslog-template-{}-{}".format(job_id, collect_file)
+    # template_name = "easyops-rsyslog-template-{}-{}".format(job_id, collect_file)
     rsyslog_file_state_file = os.path.join(common.BASE_PATH, "rsyslog_state_file", "rsyslog_file_state_file")
 
     # IP为空则从配置文件获取
@@ -73,9 +73,9 @@ def run():
     rsyslog_conf = rsyslog_conf_tpl.format(
         work_dir=os.path.join(common.BASE_PATH, "rsyslog_state_file"),
         collect_file=collect_file,
-        input_tag="{}-{}".format(job_id, collect_file),
+        input_tag=job_id,
         rsyslog_file_state_file=rsyslog_file_state_file,
-        template_name=template_name,
+        template_name=job_id,
         easyops_server_ip=server_ip,
         easyops_server_port=easyops_server_port,
         business_id=business_id,

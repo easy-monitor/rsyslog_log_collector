@@ -1,0 +1,12 @@
+[
+    {
+        "tagDefine": [], 
+        "help": "",
+        "data_type": "string",
+        "paramDefine": [], 
+        "agentType": "easyops",
+        "key": "operate_type",
+        "metric_type": "gauge", 
+        "unit": ""
+    }
+]
