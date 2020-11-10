@@ -26,28 +26,63 @@ business_id = os.environ.get("EASYOPS_COLLECTOR_business_id")
 host_ip = os.environ.get("EASYOPS_COLLECTOR_host_ip")
 
 rsyslog_conf_tpl = '''
-$ModLoad imfile
-$WorkDirectory  {work_dir}
-$InputFileName  {collect_file}
-$InputFileTag {input_tag}
-$InputFileStateFile  {rsyslog_file_state_file}
-$InputFileSeverity info 
-$InputRunFileMonitor
-$InputFilePersistStateInterval 2000
+module(load="imfile")
 
-template(name="{template_name}"
-  type="list") {{
-    constant(value="{{")
-      constant(value="\",\"business\":\"")           constant(value="\"{business_id}\"")
-      constant(value="\",\"app\":\"")                constant(value="\"{app_id}\"")
-      constant(value="\",\"host\":\"")               constant(value="\"{host_ip}\"")
-      constant(value="\",\"log_file_path\":\"")      constant(value="\"{collect_file}\"")
+input(type="imfile"
+    File="{collect_file}"
+    Tag="{input_tag}"
+    Ruleset="sendToLogSer_{input_tag}"
+    addMetadata="on")
 
-      constant(value="\",\"message\":\"")            property(name="rawmsg" format="json")
-    constant(value="\"}}\n")
+template(name="{template_name}" type="list") {{
+    constant(value="{{\\"")
+
+    constant(value="host")
+    constant(value="\\": \\"")
+    constant(value="{host_ip}")
+    constant(value="\\", \\"")
+
+    constant(value="business_id")
+    constant(value="\\": \\"")
+    constant(value="{business_id}")
+    constant(value="\\", \\"")
+
+    constant(value="app_id")
+    constant(value="\\": \\"")
+    constant(value="{app_id}")
+    constant(value="\\", \\"")
+
+    constant(value="log_file_path")
+    constant(value="\\": \\"")
+    property(name="$!metadata!filename")
+    constant(value="\\", \\"")
+
+    constant(value="message")
+    constant(value="\\": \\"")
+    property(name="msg")
+    constant(value="\\"")
+    constant(value="}}")
+    }}
+
+ruleset(name="sendToLogSer_{input_tag}") {{
+    action(type="omfwd"
+           target="{easyops_server_ip}"
+           port="{easyops_server_port}"
+           protocol="tcp"
+           template="{template_name}"
+           queue.type="LinkedList" 
+           queue.size="10000"
+           queue.filename="q_{input_tag}"
+           queue.highwatermark="9000"
+           queue.lowwatermark="50"
+           queue.maxdiskspace="500m"
+           queue.saveonshutdown="on" 
+           action.resumeRetryCount="-1"
+           action.reportSuspension="on"
+           action.reportSuspensionContinuation="on"
+           action.resumeInterval="10")
+    stop
 }}
-if $programname == '{input_tag}' then  @@{easyops_server_ip}:{easyops_server_port};{template_name}
-& ~
 '''
 
 
@@ -64,17 +99,18 @@ def restart_rsyslog(cmd="service rsyslog restart"):
 
 def run():
     common.log_setup()
-
     # template_name = "easyops-rsyslog-template-{}-{}".format(job_id, collect_file)
-    rsyslog_file_state_file = os.path.join(common.BASE_PATH, "rsyslog_state_file", "rsyslog_file_state_file")
+    # work_dir = os.path.join(common.BASE_PATH, "rsyslog_state_file")
+    # rsyslog_file_state_file = os.path.join(common.BASE_PATH, "rsyslog_state_file", "rsyslog_file_state_file")
+
+    # if not os.path.exists(work_dir):
+    #     os.makedirs(work_dir)
 
     # IP为空则从配置文件获取
     server_ip = random.choice(common.get_server_ip(easyops_server_ip))
     rsyslog_conf = rsyslog_conf_tpl.format(
-        work_dir=os.path.join(common.BASE_PATH, "rsyslog_state_file"),
         collect_file=collect_file,
         input_tag=job_id,
-        rsyslog_file_state_file=rsyslog_file_state_file,
         template_name=job_id,
         easyops_server_ip=server_ip,
         easyops_server_port=easyops_server_port,
