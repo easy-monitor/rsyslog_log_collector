@@ -10,7 +10,7 @@ import hashlib
 BASE_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONF_PATH = os.path.join(BASE_PATH, "rsyslog_conf")
 
-RSYSLOG_CONF_MD5_KEY = "rsyslog_conf_md5"
+RSYSLOG_CONF_MD5_KEY = "rsyslog_conf_md5_map"
 
 EAYSOPS_PATH = os.environ.get("EASYOPS_BASE_PATH", "")
 if EAYSOPS_PATH == "":
@@ -37,7 +37,7 @@ def get_ip_from_agent_conf():
                           [server_groups for server_groups in conf["report"]["server_groups"]]]
             for hosts in host_gourp:
                 for host in hosts:
-                    ips.append(host["ip"])
+                    ips.extend(host["ip"].split(","))
         logging.info("get server_ip form conf file")
         return ips
     except Exception as e:
@@ -65,7 +65,7 @@ def log_setup():
 
 
 def get_last_conf_md5():
-    return load_conf_file().get(RSYSLOG_CONF_MD5_KEY, "")
+    return load_conf_file().get(RSYSLOG_CONF_MD5_KEY, {})
 
 
 def load_conf_file(conf_record_file="job_conf.ini"):
@@ -91,7 +91,7 @@ def get_record_conf(md5, collector_name, rsyslog_conf_path, restart_cmd):
         RSYSLOG_CONF_MD5_KEY: md5,
         "job_id": collector_name,
         "rsyslog_conf_path": rsyslog_conf_path,
-        "restart_cmd": restart_cmd
+        "restart_cmd": restart_cmd,
     }
 
 

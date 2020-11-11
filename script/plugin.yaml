@@ -1,7 +1,7 @@
 type: simple-script
 agentType: easyops
 
-name: easyops_rsyslog_log_coll
+name: easyops_rsyslog_collector
 version: 1.0.0
 
 category: OS系统

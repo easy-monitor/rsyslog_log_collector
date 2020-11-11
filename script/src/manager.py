@@ -25,7 +25,7 @@ app_id = os.environ.get("EASYOPS_COLLECTOR_app_id")
 business_id = os.environ.get("EASYOPS_COLLECTOR_business_id")
 host_ip = os.environ.get("EASYOPS_COLLECTOR_host_ip")
 
-rsyslog_conf_tpl = '''
+rsyslog_conf_tpl = u'''
 module(load="imfile")
 
 input(type="imfile"
@@ -87,59 +87,103 @@ ruleset(name="sendToLogSer_{input_tag}") {{
 
 
 def link_conf(src_file, dst_file):
-    rcode, output = cmd_util.run_cmd("ln -sf {} {}".format(src_file, dst_file), shell=True)
+    rcode, output = cmd_util.run_cmd(u"ln -sf {} {}".format(src_file, dst_file), shell=True)
+
+
+def unlink_conf(dst_file):
+    return cmd_util.run_cmd(u"rm -f {}".format(dst_file), shell=True)
 
 
 def restart_rsyslog(cmd="service rsyslog restart"):
-    logging.info('restrat rsyslog, cmd is %s', cmd)
+    logging.info(u'restrat rsyslog, cmd is %s', cmd)
     rcode, output = cmd_util.run_cmd(cmd, shell=True)
-    logging.info("restart complete, rcode=%s, output=%s", rcode, output)
+    logging.info(u"restart complete, rcode=%s, output=%s", rcode, output)
     return
+
+
+def generate_conf(server_ip, one_file):
+    try:
+        conf_id = u"easyops-rsyslog-{}".format( one_file.decode("utf-8"))
+        rsyslog_conf = rsyslog_conf_tpl.format(
+            collect_file=one_file,
+            input_tag=conf_id,
+            template_name=conf_id,
+            easyops_server_ip=server_ip,
+            easyops_server_port=easyops_server_port,
+            business_id=business_id,
+            app_id=app_id,
+            host_ip=host_ip,
+        )
+        return rsyslog_conf
+    except Exception as e:
+        logging.error(traceback.format_exc())
+        raise e
+
+
+def check_conf_change(conf_map):
+    last_conf_md5_map = common.get_last_conf_md5()
+    logging.info(last_conf_md5_map)
+
+    to_add = []
+
+    conf_md5_map = {}
+    for file_name, conf in conf_map.iteritems():
+        conf_md5_map[file_name] = common.get_md5(conf)
+        if file_name in last_conf_md5_map:
+            if last_conf_md5_map[file_name] == conf_md5_map[file_name]:
+                del last_conf_md5_map[file_name]
+                logging.info(u"file %s conf not change", file_name)
+            else:
+                to_add.append(file_name)
+        else:
+            to_add.append(file_name)
+
+    return conf_md5_map, to_add, last_conf_md5_map.keys()
 
 
 def run():
     common.log_setup()
-    # template_name = "easyops-rsyslog-template-{}-{}".format(job_id, collect_file)
-    # work_dir = os.path.join(common.BASE_PATH, "rsyslog_state_file")
-    # rsyslog_file_state_file = os.path.join(common.BASE_PATH, "rsyslog_state_file", "rsyslog_file_state_file")
-
-    # if not os.path.exists(work_dir):
-    #     os.makedirs(work_dir)
-
     # IP为空则从配置文件获取
     server_ip = random.choice(common.get_server_ip(easyops_server_ip))
-    rsyslog_conf = rsyslog_conf_tpl.format(
-        collect_file=collect_file,
-        input_tag=job_id,
-        template_name=job_id,
-        easyops_server_ip=server_ip,
-        easyops_server_port=easyops_server_port,
-        business_id=business_id,
-        app_id=app_id,
-        host_ip=host_ip,
-    )
+    conf_map = {}
+    for file_name in collect_file.split(","):
+        conf_map[file_name] = generate_conf(server_ip, file_name)
 
-    last_conf_md5 = common.get_last_conf_md5()
-    logging.info(last_conf_md5)
-    logging.info(rsyslog_conf)
-    logging.info(common.get_md5(rsyslog_conf))
-    if last_conf_md5 == common.get_md5(rsyslog_conf):
-        logging.info("last conf md5 not change, return")
+    #  dict       list       list
+    total_conf, new_conf, expire_conf = check_conf_change(conf_map)
+    if not new_conf and not expire_conf:
+        logging.info(u"nothing change, end here")
         return
 
+    # record conf to file
+    common.record_conf_file(common.get_record_conf(
+        total_conf,
+        job_id,
+        rsyslog_conf_path,
+        restart_cmd,
+    ))
+
     try:
-        logging.info('start generate conf')
-        common.record_conf_file(common.get_record_conf(
-            common.get_md5(rsyslog_conf),
-            job_id,
-            rsyslog_conf_path,
-            restart_cmd
-        ))
-        common.write_conf(rsyslog_conf, job_id)
-        link_conf(common.get_conf_file_path(job_id), rsyslog_conf_path)
+        logging.info(u'start generate conf')
+        for file_name in new_conf:
+            conf_name = u"job_conf_{}".format(total_conf[file_name])
+            common.write_conf(conf_map[file_name].encode("utf-8"), conf_name)
+
+            conf_file_path = common.get_conf_file_path(conf_name)
+            logging.info(u"link %s", conf_file_path)
+            link_conf(conf_file_path,
+                      os.path.join(rsyslog_conf_path, common.get_conf_file_name(conf_name)))
+
+        for file_name in expire_conf:
+            conf_name = u"job_conf_{}".format(total_conf[file_name])
+            conf_file_path = common.get_conf_file_path(conf_name)
+            logging.info(u"unlink %s", conf_file_path)
+            unlink_conf(conf_file_path)
+
         restart_rsyslog(restart_cmd)
-        logging.info('end generate conf')
+        logging.info(u'end generate conf')
     except Exception as e:
+        logging.error(traceback.format_exc())
         raise e
 
 
