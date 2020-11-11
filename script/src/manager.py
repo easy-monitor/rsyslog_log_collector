@@ -25,6 +25,8 @@ app_id = os.environ.get("EASYOPS_COLLECTOR_app_id")
 business_id = os.environ.get("EASYOPS_COLLECTOR_business_id")
 host_ip = os.environ.get("EASYOPS_COLLECTOR_host_ip")
 
+file_prefix = u"easyops_rsyslog_job_conf_{}"
+
 rsyslog_conf_tpl = u'''
 module(load="imfile")
 
@@ -103,11 +105,11 @@ def restart_rsyslog(cmd="service rsyslog restart"):
 
 def generate_conf(server_ip, one_file):
     try:
-        conf_id = u"easyops-rsyslog-{}".format( one_file.decode("utf-8"))
+        job_id = common.get_job_id_from_path()
         rsyslog_conf = rsyslog_conf_tpl.format(
             collect_file=one_file,
-            input_tag=conf_id,
-            template_name=conf_id,
+            input_tag=job_id,
+            template_name=job_id,
             easyops_server_ip=server_ip,
             easyops_server_port=easyops_server_port,
             business_id=business_id,
@@ -166,7 +168,7 @@ def run():
     try:
         logging.info(u'start generate conf')
         for file_name in new_conf:
-            conf_name = u"job_conf_{}".format(total_conf[file_name])
+            conf_name = file_prefix.format(total_conf[file_name])
             common.write_conf(conf_map[file_name].encode("utf-8"), conf_name)
 
             conf_file_path = common.get_conf_file_path(conf_name)
@@ -175,7 +177,7 @@ def run():
                       os.path.join(rsyslog_conf_path, common.get_conf_file_name(conf_name)))
 
         for file_name in expire_conf:
-            conf_name = u"job_conf_{}".format(total_conf[file_name])
+            conf_name = file_prefix.format(total_conf[file_name])
             conf_file_path = common.get_conf_file_path(conf_name)
             logging.info(u"unlink %s", conf_file_path)
             unlink_conf(conf_file_path)

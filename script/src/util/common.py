@@ -110,3 +110,7 @@ def write_conf(conf, name):
     with open(output_path, "w") as f:
         f.write(conf)
     logging.info("write conf to %s complete", output_path)
+
+
+def get_job_id_from_path():
+    return os.path.dirname(BASE_PATH).rsplit("/", 1)[-1].split("-", 1)[-1]
