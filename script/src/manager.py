@@ -23,6 +23,7 @@ easyops_server_ip = os.environ.get("EASYOPS_COLLECTOR_easyops_server_ip")
 easyops_server_port = os.environ.get("EASYOPS_COLLECTOR_easyops_server_port")
 app_id = os.environ.get("EASYOPS_COLLECTOR_app_id")
 business_id = os.environ.get("EASYOPS_COLLECTOR_business_id")
+business_name = os.environ.get("EASYOPS_COLLECTOR_business_name")
 host_ip = os.environ.get("EASYOPS_COLLECTOR_host_ip")
 
 file_prefix = u"easyops_rsyslog_job_conf_{}"
@@ -36,7 +37,7 @@ input(type="imfile"
     Ruleset="sendToLogSer_{input_tag}"
     addMetadata="on")
 
-template(name="{template_name}" type="list") {{
+template(name="{template_name}" type="list"  option.json="on") {{
     constant(value="{{\\"")
 
     constant(value="host")
@@ -47,6 +48,11 @@ template(name="{template_name}" type="list") {{
     constant(value="business_id")
     constant(value="\\": \\"")
     constant(value="{business_id}")
+    constant(value="\\", \\"")
+
+    constant(value="business_name")
+    constant(value="\\": \\"")
+    constant(value="{business_name}")
     constant(value="\\", \\"")
 
     constant(value="app_id")
@@ -113,6 +119,7 @@ def generate_conf(server_ip, one_file):
             easyops_server_ip=server_ip,
             easyops_server_port=easyops_server_port,
             business_id=business_id,
+            business_name=business_name,
             app_id=app_id,
             host_ip=host_ip,
         )
