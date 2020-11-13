@@ -45,7 +45,7 @@ template(name="{template_name}" type="list"  option.json="on") {{
     constant(value="{host_ip}")
     constant(value="\\", \\"")
 
-    constant(value="business_id")
+    constant(value="business")
     constant(value="\\": \\"")
     constant(value="{business_id}")
     constant(value="\\", \\"")
@@ -55,7 +55,7 @@ template(name="{template_name}" type="list"  option.json="on") {{
     constant(value="{business_name}")
     constant(value="\\", \\"")
 
-    constant(value="app_id")
+    constant(value="app")
     constant(value="\\": \\"")
     constant(value="{app_id}")
     constant(value="\\", \\"")
