@@ -1,12 +1,9 @@
 ---
 proc_list: []
 port_list: []
-proc_guard: ~
-port_guard: ~
-start_script: "  \n#限制core文件大小为4k,用于进程coredump监控  \n#ulimit -c 4 -S\n#ulimit -n 100000\n
-  \ \n#-----单进程名程序包请在这添加启动命令-----  \n#./nginx\n  \n#-----多进程名程序包请在这添加启动命令-----  \n#每个进程复制一份if语句，注意保留if判断逻辑并修改内部的示例进程名app_test
-  \ \n#变量app_to_start为需要启动的进程名,不需要修改  \n#if [ \"$app_to_start\" = \"app_test\" -o
-  \"$app_to_start\" = \"all\" ];then  \n#    ./app_test\n#fi  \n"
+proc_guard: ""
+port_guard: ""
+start_script: ""
 user_pre_check_script: ""
 user_check_script: ""
 stop_script: |
@@ -20,6 +17,9 @@ stop_script: |
   restart_cmd = os.environ.get("EASYOPS_COLLECTOR_restart_cmd")
   collector_name = os.environ.get("EASYOPS_COLLECTOR_collector_name")
   rsyslog_conf_path = os.environ.get("EASYOPS_COLLECTOR_rsyslog_conf_path")
+
+  RSYSLOG_CONF_MD5_KEY = "rsyslog_conf_md5_map"
+  file_prefix = u"easyops_rsyslog_job_conf_{}"
 
 
   def load_conf_file(conf_record_file="job_conf.ini"):
@@ -49,18 +49,27 @@ stop_script: |
 
 
   def unlink_conf(dst_file):
-      rcode, output = run_cmd("rm -f {}".format(dst_file), shell=True)
+      return run_cmd("rm -f {}".format(dst_file), shell=True)
 
 
   def get_conf_file_name(name):
       return os.path.join(name + ".conf")
 
 
+  def restart_rsyslog(cmd="service rsyslog restart"):
+      return run_cmd(cmd, shell=True)
+
+
   def run():
-      recored_conf = load_conf_file()
-      file_name = recored_conf.get("job_id", collector_name)
-      conf_file = os.path.join(rsyslog_conf_path, get_conf_file_name(file_name))
-      unlink_conf(conf_file)
+      recorded_conf = load_conf_file()
+      conf_map = recorded_conf.get(RSYSLOG_CONF_MD5_KEY, collector_name)
+      real_restart_cmd = recorded_conf.get("restart_cmd", restart_cmd)
+      real_rsyslog_conf_path = recorded_conf.get("rsyslog_conf_path", restart_cmd)
+      for file_name, md5 in conf_map.iteritems():
+          conf_file = os.path.join(real_rsyslog_conf_path, get_conf_file_name(file_prefix.format(md5)))
+          print "will delete conf {}".format(conf_file)
+          print unlink_conf(conf_file)
+      print restart_rsyslog(real_restart_cmd)
 
 
   if __name__ == "__main__":
@@ -73,14 +82,14 @@ user_pre_check_script_type: shell
 user_check_script_type: shell
 stop_script_type: shell
 user_defined_global_variables: []
-restart_script: ""
-install_prescript: ""
 install_postscript: ""
-update_prescript: ""
-update_postscript: ""
-rollback_prescript: ""
+install_prescript: ""
+resolve_script: ""
+restart_script: ""
 rollback_postscript: ""
-user_pre_check: ""
+rollback_prescript: ""
+update_postscript: ""
+update_prescript: ""
 uninstall_prescript: ""
 uninstall_postscript: ""
 ...

@@ -9,6 +9,9 @@ restart_cmd = os.environ.get("EASYOPS_COLLECTOR_restart_cmd")
 collector_name = os.environ.get("EASYOPS_COLLECTOR_collector_name")
 rsyslog_conf_path = os.environ.get("EASYOPS_COLLECTOR_rsyslog_conf_path")
 
+RSYSLOG_CONF_MD5_KEY = "rsyslog_conf_md5_map"
+file_prefix = u"easyops_rsyslog_job_conf_{}"
+
 
 def load_conf_file(conf_record_file="job_conf.ini"):
     try:
@@ -50,11 +53,13 @@ def restart_rsyslog(cmd="service rsyslog restart"):
 
 def run():
     recorded_conf = load_conf_file()
-    file_name = recorded_conf.get("job_id", collector_name)
+    conf_map = recorded_conf.get(RSYSLOG_CONF_MD5_KEY, collector_name)
     real_restart_cmd = recorded_conf.get("restart_cmd", restart_cmd)
     real_rsyslog_conf_path = recorded_conf.get("rsyslog_conf_path", restart_cmd)
-    conf_file = os.path.join(real_rsyslog_conf_path, get_conf_file_name(file_name))
-    print unlink_conf(conf_file)
+    for file_name, md5 in conf_map.iteritems():
+        conf_file = os.path.join(real_rsyslog_conf_path, get_conf_file_name(file_prefix.format(md5)))
+        print "will delete conf {}".format(conf_file)
+        print unlink_conf(conf_file)
     print restart_rsyslog(real_restart_cmd)
 
 

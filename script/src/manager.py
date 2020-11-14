@@ -37,40 +37,10 @@ input(type="imfile"
     Ruleset="sendToLogSer_{input_tag}"
     addMetadata="on")
 
-template(name="{template_name}" type="list"  option.json="on") {{
-    constant(value="{{\\"")
 
-    constant(value="host")
-    constant(value="\\": \\"")
-    constant(value="{host_ip}")
-    constant(value="\\", \\"")
-
-    constant(value="business")
-    constant(value="\\": \\"")
-    constant(value="{business_id}")
-    constant(value="\\", \\"")
-
-    constant(value="business_name")
-    constant(value="\\": \\"")
-    constant(value="{business_name}")
-    constant(value="\\", \\"")
-
-    constant(value="app")
-    constant(value="\\": \\"")
-    constant(value="{app_id}")
-    constant(value="\\", \\"")
-
-    constant(value="log_file_path")
-    constant(value="\\": \\"")
-    property(name="$!metadata!filename")
-    constant(value="\\", \\"")
-
-    constant(value="message")
-    constant(value="\\": \\"")
-    property(name="msg")
-    constant(value="\\"")
-    constant(value="}}")
-    }}
+template(name="{template_name}" type="string"
+     string="<%PRI%>1 %TIMESTAMP:::date-rfc3339% %HOSTNAME% %APP-NAME% %PROCID% %MSGID% [host=\\"{host_ip}\\" business=\\"{business_id}\\" business_name=\\"{business_name}\\" app=\\"{app_id}\\" log_file_path=\\"%$!metadata!filename%\\" ] %msg%\n"
+ )
 
 ruleset(name="sendToLogSer_{input_tag}") {{
     action(type="omfwd"
@@ -111,15 +81,15 @@ def restart_rsyslog(cmd="service rsyslog restart"):
 
 def generate_conf(server_ip, one_file):
     try:
-        job_id = common.get_job_id_from_path()
+        tag = "{}-{}".format(common.get_job_id_from_path(), one_file)
         rsyslog_conf = rsyslog_conf_tpl.format(
             collect_file=one_file,
-            input_tag=job_id,
-            template_name=job_id,
+            input_tag=tag,
+            template_name=tag,
             easyops_server_ip=server_ip,
             easyops_server_port=easyops_server_port,
             business_id=business_id,
-            business_name=business_name,
+            business_name=business_name.decode("utf-8"),
             app_id=app_id,
             host_ip=host_ip,
         )
@@ -133,8 +103,7 @@ def check_conf_change(conf_map):
     last_conf_md5_map = common.get_last_conf_md5()
     logging.info(last_conf_md5_map)
 
-    to_add = []
-
+    to_add = {}
     conf_md5_map = {}
     for file_name, conf in conf_map.iteritems():
         conf_md5_map[file_name] = common.get_md5(conf)
@@ -143,11 +112,11 @@ def check_conf_change(conf_map):
                 del last_conf_md5_map[file_name]
                 logging.info(u"file %s conf not change", file_name)
             else:
-                to_add.append(file_name)
+                to_add[file_name] = conf_md5_map[file_name]
         else:
-            to_add.append(file_name)
+            to_add[file_name] = conf_md5_map[file_name]
 
-    return conf_md5_map, to_add, last_conf_md5_map.keys()
+    return conf_md5_map, to_add, last_conf_md5_map
 
 
 def run():
@@ -158,7 +127,6 @@ def run():
     for file_name in collect_file.split(","):
         conf_map[file_name] = generate_conf(server_ip, file_name)
 
-    #  dict       list       list
     total_conf, new_conf, expire_conf = check_conf_change(conf_map)
     if not new_conf and not expire_conf:
         logging.info(u"nothing change, end here")
@@ -183,9 +151,9 @@ def run():
             link_conf(conf_file_path,
                       os.path.join(rsyslog_conf_path, common.get_conf_file_name(conf_name)))
 
-        for file_name in expire_conf:
-            conf_name = file_prefix.format(total_conf[file_name])
-            conf_file_path = common.get_conf_file_path(conf_name)
+        for file_name, md5 in expire_conf.iteritems():
+            conf_name = file_prefix.format(md5)
+            conf_file_path = os.path.join(rsyslog_conf_path, common.get_conf_file_name(conf_name))
             logging.info(u"unlink %s", conf_file_path)
             unlink_conf(conf_file_path)
 
