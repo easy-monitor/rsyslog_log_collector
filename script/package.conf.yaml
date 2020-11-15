@@ -4,8 +4,11 @@ port_list: []
 proc_guard: ""
 port_guard: ""
 start_script: ""
+start_script_type: shell
 user_pre_check_script: ""
+user_pre_check_script_type: shell
 user_check_script: ""
+user_check_script_type: shell
 stop_script: |
   #!/usr/local/easyops/python/bin/python
   # _*_coding: utf-8_*_
@@ -74,14 +77,11 @@ stop_script: |
 
   if __name__ == "__main__":
       run()
+stop_script_type: python
 monitor_script: ""
 user: root
-baseImageId: ""
-start_script_type: shell
-user_pre_check_script_type: shell
-user_check_script_type: shell
-stop_script_type: shell
 user_defined_global_variables: []
+baseImageId: ""
 install_postscript: ""
 install_prescript: ""
 resolve_script: ""
