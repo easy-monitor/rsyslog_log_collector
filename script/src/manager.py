@@ -39,7 +39,7 @@ input(type="imfile"
 
 
 template(name="{template_name}" type="string"
-     string="<%PRI%>1 %TIMESTAMP:::date-rfc3339% %HOSTNAME% %APP-NAME% %PROCID% %MSGID% [host=\\"{host_ip}\\" business=\\"{business_id}\\" business_name=\\"{business_name}\\" app=\\"{app_id}\\" log_file_path=\\"%$!metadata!filename%\\" ] %msg%\n"
+     string="<%PRI%>1 %TIMESTAMP:::date-rfc3339% %HOSTNAME% %APP-NAME% %PROCID% %MSGID% [host=\\"{host_ip}\\" business=\\"{business_id}\\" business_name=\\"{business_name}\\" app=\\"{app_id}\\" log_file_path=\\"%$!metadata!filename%\\"] %msg%\\n"
  )
 
 ruleset(name="sendToLogSer_{input_tag}") {{
