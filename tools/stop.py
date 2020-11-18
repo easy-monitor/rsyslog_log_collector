@@ -4,6 +4,8 @@
 import os
 import subprocess
 import yaml
+import glob
+
 
 restart_cmd = os.environ.get("EASYOPS_COLLECTOR_restart_cmd")
 collector_name = os.environ.get("EASYOPS_COLLECTOR_collector_name")
@@ -11,6 +13,7 @@ rsyslog_conf_path = os.environ.get("EASYOPS_COLLECTOR_rsyslog_conf_path")
 
 RSYSLOG_CONF_MD5_KEY = "rsyslog_conf_md5_map"
 file_prefix = u"easyops_rsyslog_job_conf_{}"
+record_file = u"jon_conf_*.ini"
 
 
 def load_conf_file(conf_record_file="job_conf.ini"):
@@ -51,16 +54,20 @@ def restart_rsyslog(cmd="service rsyslog restart"):
     return run_cmd(cmd, shell=True)
 
 
+def get_all_file(file_regex):
+    return glob.glob(file_regex)
+
 def run():
-    recorded_conf = load_conf_file()
-    conf_map = recorded_conf.get(RSYSLOG_CONF_MD5_KEY, collector_name)
-    real_restart_cmd = recorded_conf.get("restart_cmd", restart_cmd)
-    real_rsyslog_conf_path = recorded_conf.get("rsyslog_conf_path", restart_cmd)
-    for file_name, md5 in conf_map.iteritems():
-        conf_file = os.path.join(real_rsyslog_conf_path, get_conf_file_name(file_prefix.format(md5)))
-        print "will delete conf {}".format(conf_file)
-        print unlink_conf(conf_file)
-    print restart_rsyslog(real_restart_cmd)
+    for file_name in get_all_file(record_file):
+        recorded_conf = load_conf_file(file_name)
+        conf_map = recorded_conf.get(RSYSLOG_CONF_MD5_KEY, collector_name)
+        real_restart_cmd = recorded_conf.get("restart_cmd", restart_cmd)
+        real_rsyslog_conf_path = recorded_conf.get("rsyslog_conf_path", restart_cmd)
+        for file_name, md5 in conf_map.iteritems():
+            conf_file = os.path.join(real_rsyslog_conf_path, get_conf_file_name(file_prefix.format(md5)))
+            print "will delete conf {}".format(conf_file)
+            print unlink_conf(conf_file)
+        print restart_rsyslog(real_restart_cmd)
 
 
 if __name__ == "__main__":

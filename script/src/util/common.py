@@ -6,11 +6,15 @@ import logging
 import yaml
 import os
 import hashlib
+import glob
 
 BASE_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONF_PATH = os.path.join(BASE_PATH, "rsyslog_conf")
 
 RSYSLOG_CONF_MD5_KEY = "rsyslog_conf_md5_map"
+record_file_dir = os.path.join(BASE_PATH, u"conf_record")
+record_file = u"job_conf_{}.ini"
+
 
 EAYSOPS_PATH = os.environ.get("EASYOPS_BASE_PATH", "")
 if EAYSOPS_PATH == "":
@@ -25,6 +29,10 @@ def get_md5(content):
     hl = hashlib.md5()
     hl.update(content.encode(encoding='utf-8'))
     return hl.hexdigest()
+
+
+def get_all_record_file():
+    return glob.glob(os.path.join(record_file_dir, record_file.format("*")))
 
 
 def get_ip_from_agent_conf():
@@ -64,8 +72,8 @@ def log_setup():
     logger.setLevel(logging.INFO)
 
 
-def get_last_conf_md5():
-    return load_conf_file().get(RSYSLOG_CONF_MD5_KEY, {})
+def get_last_conf_md5(filename):
+    return load_conf_file(filename).get(RSYSLOG_CONF_MD5_KEY, {})
 
 
 def load_conf_file(conf_record_file="job_conf.ini"):
@@ -103,6 +111,18 @@ def get_conf_file_path(name):
     return os.path.join(CONF_PATH, get_conf_file_name(name))
 
 
+def get_record_file_path(md5_value):
+    return os.path.join(record_file_dir, record_file.format(md5_value))
+
+
+def check_record_file_path():
+    logging.info(record_file_dir)
+
+    if not os.path.exists(record_file_dir):
+        logging.info( record_file_dir)
+        os.makedirs(record_file_dir)
+
+
 def write_conf(conf, name):
     output_path = get_conf_file_path(name)
     if not os.path.exists(CONF_PATH):
@@ -114,3 +134,7 @@ def write_conf(conf, name):
 
 def get_job_id_from_path():
     return os.path.dirname(BASE_PATH).rsplit("/", 1)[-1].split("-", 1)[-1]
+
+
+def get_file_mtime(file_name):
+    return os.stat(file_name).st_mtime

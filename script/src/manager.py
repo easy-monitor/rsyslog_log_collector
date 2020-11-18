@@ -1,13 +1,13 @@
 #!/usr/local/easyops/python/bin/python
 # _*_coding: utf-8_*_
 
-import yaml
+import json
 import os
 import logging
 import random
 import logging.handlers
-import yaml
 import traceback
+import time
 
 # pro
 from util import common, cmd_util
@@ -25,6 +25,8 @@ app_id = os.environ.get("EASYOPS_COLLECTOR_app_id")
 business_id = os.environ.get("EASYOPS_COLLECTOR_business_id")
 business_name = os.environ.get("EASYOPS_COLLECTOR_business_name")
 host_ip = os.environ.get("EASYOPS_COLLECTOR_host_ip")
+expire_time = os.environ.get("EASYEASYOPS_COLLECTOR_expire_time", 60)
+
 
 file_prefix = u"easyops_rsyslog_job_conf_{}"
 
@@ -100,9 +102,13 @@ def generate_conf(server_ip, one_file):
 
 
 def check_conf_change(conf_map):
-    last_conf_md5_map = common.get_last_conf_md5()
-    logging.info(last_conf_md5_map)
+    last_conf_md5_map = common.get_last_conf_md5(
+        common.get_record_file_path(
+            common.get_md5(collect_file)
+        )
+    )
 
+    logging.info(last_conf_md5_map)
     to_add = {}
     conf_md5_map = {}
     for file_name, conf in conf_map.iteritems():
@@ -121,6 +127,11 @@ def check_conf_change(conf_map):
 
 def run():
     common.log_setup()
+    common.check_record_file_path()
+    if not collect_file:
+        logging.error("get invalid collect_file, %s", collect_file)
+        return
+
     # IP为空则从配置文件获取
     server_ip = random.choice(common.get_server_ip(easyops_server_ip))
     conf_map = {}
@@ -128,9 +139,6 @@ def run():
         conf_map[file_name] = generate_conf(server_ip, file_name)
 
     total_conf, new_conf, expire_conf = check_conf_change(conf_map)
-    if not new_conf and not expire_conf:
-        logging.info(u"nothing change, end here")
-        return
 
     # record conf to file
     common.record_conf_file(common.get_record_conf(
@@ -138,7 +146,14 @@ def run():
         job_id,
         rsyslog_conf_path,
         restart_cmd,
-    ))
+        ), common.get_record_file_path(
+            common.get_md5(collect_file)
+        )
+    )
+
+    if not new_conf and not expire_conf:
+        logging.info(u"nothing change, end here")
+        return "remain"
 
     try:
         logging.info(u'start generate conf')
@@ -159,14 +174,45 @@ def run():
 
         restart_rsyslog(restart_cmd)
         logging.info(u'end generate conf')
+        return "update"
     except Exception as e:
         logging.error(traceback.format_exc())
         raise e
 
 
+def output_result(rsyslog_operate_type=""):
+    print json.dumps([{
+        'dims': {},
+        'vals': {
+            "rsyslog_operate_type": rsyslog_operate_type
+        }
+    }])
+
+
+def check_expire_conf(expire_time=300):
+    all_record_file = common.get_all_record_file()
+    for file_name in all_record_file:
+        now, mtime = int(time.time()), int(common.get_file_mtime(file_name))
+        if now - mtime > expire_time:
+            logging.info("file %s mtime %d now %d, will clean rsyslog conf file", file_name, mtime, now)
+            conf_record = common.load_conf_file(file_name)
+
+            for collect_file_name, md5 in conf_record.get(common.RSYSLOG_CONF_MD5_KEY, {}).iteritems():
+                conf_name = file_prefix.format(md5)
+                conf_file_path = os.path.join(rsyslog_conf_path, common.get_conf_file_name(conf_name))
+                unlink_conf(conf_file_path)
+                logging.info(u"unlink %s", conf_file_path)
+                os.remove(file_name)
+                logging.info("remove file %s", file_name)
+        else:
+            logging.info("file %s mtime %d not expire", file_name, mtime)
+
+
 if __name__ == "__main__":
     try:
-        run()
+        operate_type = run()
+        output_result(operate_type)
+        check_expire_conf(expire_time*5)
     except Exception as e:
         logging.error(e.message)
         logging.error(traceback.format_exc())
