@@ -31,38 +31,18 @@ expire_time = os.environ.get("EASYEASYOPS_COLLECTOR_expire_time", 60)
 file_prefix = u"easyops_rsyslog_job_conf_{}"
 
 rsyslog_conf_tpl = u'''
-module(load="imfile")
+$ModLoad imfile
+$WorkDirectory  {work_dir}
+$InputFileName  {collect_file}
+$InputFileTag {input_tag}
+$InputFileStateFile  {rsyslog_file_state_file}
+$InputFileSeverity info 
+$InputRunFileMonitor
 
-input(type="imfile"
-    File="{collect_file}"
-    Tag="{input_tag}"
-    Ruleset="sendToLogSer_{input_tag}"
-    addMetadata="on")
+$template {template_name}, "<%PRI%>1 %TIMESTAMP:::date-rfc3339% %HOSTNAME% %APP-NAME% - %MSGID% [meta@easyops host=\\"{host_ip}\\" business=\\"{business_id}\\" business_name=\\"{business_name}\\" app=\\"{app_id}\\" log_file_path=\\"{collect_file}\\"] %msg%\\n"
 
-
-template(name="{template_name}" type="string"
-     string="<%PRI%>1 %TIMESTAMP:::date-rfc3339% %HOSTNAME% %APP-NAME% %PROCID% %MSGID% [meta@easyops host=\\"{host_ip}\\" business=\\"{business_id}\\" business_name=\\"{business_name}\\" app=\\"{app_id}\\" log_file_path=\\"%$!metadata!filename%\\"] %msg%\\n"
- )
-
-ruleset(name="sendToLogSer_{input_tag}") {{
-    action(type="omfwd"
-           target="{easyops_server_ip}"
-           port="{easyops_server_port}"
-           protocol="tcp"
-           template="{template_name}"
-           queue.type="LinkedList" 
-           queue.size="10000"
-           queue.filename="q_{input_tag}"
-           queue.highwatermark="9000"
-           queue.lowwatermark="50"
-           queue.maxdiskspace="500m"
-           queue.saveonshutdown="on" 
-           action.resumeRetryCount="-1"
-           action.reportSuspension="on"
-           action.reportSuspensionContinuation="on"
-           action.resumeInterval="10")
-    stop
-}}
+if $programname == '{input_tag}' then  @@{easyops_server_ip}:{easyops_server_port};{template_name}
+& ~
 '''
 
 
@@ -81,13 +61,15 @@ def restart_rsyslog(cmd="service rsyslog restart"):
     return
 
 
-def generate_conf(server_ip, one_file):
+def generate_conf(server_ip, one_file, work_dir):
     try:
-        tag = "{}-{}".format(common.get_job_id_from_path(), one_file)
+        tag = "{}-{}".format(common.get_job_id_from_path(), common.get_md5(one_file))
         rsyslog_conf = rsyslog_conf_tpl.format(
+            work_dir=work_dir,
             collect_file=one_file,
             input_tag=tag,
             template_name=tag,
+            rsyslog_file_state_file=os.path.join(work_dir, "state"),
             easyops_server_ip=server_ip,
             easyops_server_port=easyops_server_port,
             business_id=business_id,
@@ -135,8 +117,12 @@ def run():
     # IP为空则从配置文件获取
     server_ip = random.choice(common.get_server_ip(easyops_server_ip))
     conf_map = {}
+    work_dir = os.path.join(common.BASE_PATH, "work_dir")
+    if not os.path.exists(work_dir):
+        os.makedirs(work_dir, 0755)
+
     for file_name in collect_file.split(","):
-        conf_map[file_name] = generate_conf(server_ip, file_name)
+        conf_map[file_name] = generate_conf(server_ip, file_name, work_dir)
 
     total_conf, new_conf, expire_conf = check_conf_change(conf_map)
 
