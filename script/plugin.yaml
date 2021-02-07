@@ -23,6 +23,9 @@ params:
     - easyops_server_ip
     - easyops_server_port
     - app_id
+    - app_name
     - business_id
     - business_name
     - host_ip
+    - log_type
+
