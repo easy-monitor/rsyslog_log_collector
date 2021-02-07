@@ -27,7 +27,7 @@ business_id = os.environ.get("EASYOPS_COLLECTOR_business_id")
 business_name = os.environ.get("EASYOPS_COLLECTOR_business_name", "")
 host_ip = os.environ.get("EASYOPS_COLLECTOR_host_ip")
 expire_time = os.environ.get("EASYOPS_COLLECTOR_expire_time", 60)
-log_type = os.environ.get("EASYOPS_COLLECTOR_log_type ", "")
+log_type = os.environ.get("EASYOPS_COLLECTOR_log_type", "")
 
 
 file_prefix = u"easyops_rsyslog_job_conf_{}"
