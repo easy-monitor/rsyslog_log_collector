@@ -21,11 +21,16 @@ rsyslog_conf_path = os.environ.get("EASYOPS_COLLECTOR_rsyslog_conf_path")
 
 easyops_server_ip = os.environ.get("EASYOPS_COLLECTOR_easyops_server_ip")
 easyops_server_port = os.environ.get("EASYOPS_COLLECTOR_easyops_server_port")
+
 app_id = os.environ.get("EASYOPS_COLLECTOR_app_id")
+app_name = os.environ.get("EASYOPS_COLLECTOR_app_name", "")
+
 business_id = os.environ.get("EASYOPS_COLLECTOR_business_id")
-business_name = os.environ.get("EASYOPS_COLLECTOR_business_name")
+business_name = os.environ.get("EASYOPS_COLLECTOR_business_name", "")
+
 host_ip = os.environ.get("EASYOPS_COLLECTOR_host_ip")
-expire_time = os.environ.get("EASYEASYOPS_COLLECTOR_expire_time", 60)
+expire_time = os.environ.get("EASYOPS_COLLECTOR_expire_time", 60)
+log_type = os.environ.get("EASYOPS_COLLECTOR_log_type", "")
 
 
 file_prefix = u"easyops_rsyslog_job_conf_{}"
@@ -39,7 +44,7 @@ $InputFileStateFile  {rsyslog_file_state_file}
 $InputFileSeverity info 
 $InputRunFileMonitor
 
-$template {template_name}, "<%PRI%>1 %TIMESTAMP:::date-rfc3339% %HOSTNAME% %APP-NAME% - %MSGID% [meta@easyops host=\\"{host_ip}\\" business=\\"{business_id}\\" business_name=\\"{business_name}\\" app=\\"{app_id}\\" log_file_path=\\"{collect_file}\\"] %msg%\\n"
+$template {template_name}, "<%PRI%>1 %TIMESTAMP:::date-rfc3339% %HOSTNAME% %APP-NAME% - %MSGID% [meta@easyops host=\\"{host_ip}\\" business_id=\\"{business_id}\\" business=\\"{business_name}\\" app=\\"{app_name}\\" app_id=\\"{app_id}\\"  log_type=\\"{log_type}\\" log_file_path=\\"{collect_file}\\"] %msg%\\n"
 
 if $programname == '{input_tag}' then  @@{easyops_server_ip}:{easyops_server_port};{template_name}
 & ~
@@ -74,8 +79,10 @@ def generate_conf(server_ip, one_file, work_dir):
             easyops_server_port=easyops_server_port,
             business_id=business_id,
             business_name=business_name.decode("utf-8"),
+            app_name=app_name.decode("utf-8"),
             app_id=app_id,
             host_ip=host_ip,
+            log_type=log_type.decode("utf-8"),
         )
         return rsyslog_conf
     except Exception as e:
