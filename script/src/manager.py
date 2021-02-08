@@ -44,7 +44,7 @@ $InputFileStateFile  {rsyslog_file_state_file}
 $InputFileSeverity info 
 $InputRunFileMonitor
 
-$template {template_name}, "<%PRI%>1 %TIMESTAMP:::date-rfc3339% %HOSTNAME% %APP-NAME% - %MSGID% [meta@easyops host=\\"{host_ip}\\" business_id=\\"{business_id}\\" business=\\"{business_name}\\" app=\\"{app_name}\\" app_id=\\"{app_id}\\"  log_type=\\"{log_type}\\" log_file_path=\\"{collect_file}\\"] %msg%\\n"
+$template {template_name}, "<%PRI%>1 %TIMESTAMP:::date-rfc3339% %HOSTNAME% %APP-NAME% - %MSGID% [meta@easyops host=\\"{host_ip}\\" business_id=\\"{business_id}\\" business=\\"{business_name}\\" app=\\"{app_name}\\" app_id=\\"{app_id}\\" log_type=\\"{log_type}\\" log_file_path=\\"{collect_file}\\"] %msg%\\n"
 
 if $programname == '{input_tag}' then  @@{easyops_server_ip}:{easyops_server_port};{template_name}
 & ~
