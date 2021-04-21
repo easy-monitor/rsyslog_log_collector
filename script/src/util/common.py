@@ -11,6 +11,7 @@ import glob
 BASE_PATH = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONF_PATH = os.path.join(BASE_PATH, "rsyslog_conf")
 
+
 RSYSLOG_CONF_MD5_KEY = "rsyslog_conf_md5_map"
 record_file_dir = os.path.join(BASE_PATH, u"conf_record")
 record_file = u"job_conf_{}.ini"
@@ -19,6 +20,8 @@ record_file = u"job_conf_{}.ini"
 EAYSOPS_PATH = os.environ.get("EASYOPS_BASE_PATH", "")
 if EAYSOPS_PATH == "":
     EAYSOPS_PATH = "/usr/local/easyops"
+PLUGIN_PATH = os.path.join(EAYSOPS_PATH, "next_collector_plugins")
+
 
 log_file_path = os.path.join(BASE_PATH, "log")
 if not os.path.exists(log_file_path):
