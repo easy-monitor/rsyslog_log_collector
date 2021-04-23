@@ -5,7 +5,6 @@ import subprocess
 import logging
 
 
-
 def run_cmd(command, shell=False, close_fds=True):
     logging.info("run command %s", command)
     proc = subprocess.Popen(
