@@ -69,7 +69,17 @@ def restart_rsyslog(cmd="service rsyslog restart", *args, **kwargs):
     return
 
 
-def generate_conf(server_ips, one_file, work_dir):
+def kill_all_rsyslog():
+    cmd = " ps -fC rsyslogd | grep -v 'grep' | grep -v 'next_collector_plugins' | awk '{print $2}' | xargs kill "
+    return cmd_util.run_cmd(cmd, shell=True)
+
+
+def check_rsyslog_proc_num():
+    cmd = " ps -fC rsyslogd | grep -v 'grep' | grep -v 'next_collector_plugins' "
+    return cmd_util.run_cmd(cmd, shell=True)
+
+
+def generate_conf(server_ips, one_file):
     conf_map = {}
     for ip in server_ips:
         try:
@@ -147,7 +157,7 @@ def run():
 
     # rsyslog 配置map
     for file_name in collect_file.split(","):
-        conf_map[file_name] = generate_conf(server_ips, file_name, work_dir)
+        conf_map[file_name] = generate_conf(server_ips, file_name)
 
     # rsyslog 配置md5 map
     total_conf, new_conf, expire_conf = check_conf_change(conf_map)
@@ -155,7 +165,7 @@ def run():
     # record conf to file
     common.record_conf_file(common.get_record_conf(
         total_conf,
-        job_id,
+        job_id or common.get_job_id_from_path(),
         rsyslog_conf_path,
         restart_cmd,
         ),
@@ -165,7 +175,23 @@ def run():
     )
 
     if not new_conf and not expire_conf:
-        logging.info(u"nothing change, end here")
+        logging.info(u"nothing change, will start check ln file")
+
+        # 检查并补齐ln
+        for file_name, confs in total_conf.iteritems():
+            conf_name = file_prefix.format(job_id or common.get_job_id_from_path(), common.get_md5(file_name))
+            ln_file = os.path.join(rsyslog_conf_path,  common.get_conf_file_name(conf_name))
+            logging.info("check ln file %s", ln_file)
+            # 目标软链文件不存在，则重新生成
+            if not os.path.exists(ln_file):
+                logging.info("check ln file %s not exist, will regen ln", ln_file)
+                # 选取第一个IP后就break，相当于随机选一个
+                for ip, md5 in confs.iteritems():
+                    gen_ln_conf(conf_map[file_name][ip].encode("utf-8"), conf_name)
+                    break
+            else:
+                logging.info("ln file %s exist", ln_file)
+
         return "remain"
 
     try:
@@ -175,17 +201,16 @@ def run():
 
         # 选取第一个IP后就break，相当于随机选一个
         for file_name, confs in new_conf.iteritems():
+            logging.info("get change conf with file_name %s", file_name)
             for ip, md5 in confs.iteritems():
                 logging.info("choice first ip is %s", ip)
                 conf_name = file_prefix.format(common.get_job_id_from_path(), common.get_md5(file_name))
-                common.write_conf(conf_map[file_name][ip].encode("utf-8"), conf_name)
-
-                conf_file_path = common.get_conf_file_path(conf_name)
-                logging.info(u"link %s", conf_file_path)
-                link_conf(conf_file_path, os.path.join(rsyslog_conf_path, common.get_conf_file_name(conf_name)))
+                gen_ln_conf(conf_map[file_name][ip].encode("utf-8"), conf_name)
                 break
 
         for file_name, confs in expire_conf.iteritems():
+            logging.info("get expire conf with file_name %s, will delete", file_name)
+
             for ip, md5 in confs.iteritems():
                 conf_name = file_prefix.format(md5)
                 conf_file_path = os.path.join(rsyslog_conf_path, common.get_conf_file_name(conf_name))
@@ -193,11 +218,40 @@ def run():
                 unlink_conf(conf_file_path)
 
         restart_rsyslog(restart_cmd)
+        time.sleep(1)
+
+        logging.info("start check proc num")
+        returncode, result = check_rsyslog_proc_num()
+        if returncode:
+            logging.error("check proc num error %s", result)
+        else:
+            logging.info("check proc result %s", result)
+            try:
+                proc_num = result.splitlines()
+                if len(proc_num) > 1:
+                    logging.info("proc num %s > 1, will kill rsyslog process", len(proc_num))
+                    kill_all_rsyslog()
+
+                    logging.info("proc num %s > 1, will restart again", len(proc_num))
+                    restart_rsyslog(restart_cmd)
+                else:
+                    logging.info("proc num check ok")
+            except Exception as e:
+                logging.error("result convert int error, %s", e.message)
+
         logging.info(u'end generate conf')
         return "update"
     except Exception as e:
         logging.error(traceback.format_exc())
         raise e
+
+
+def gen_ln_conf(content, conf_name):
+    common.write_conf(content, conf_name)
+
+    conf_file_path = common.get_conf_file_path(conf_name)
+    logging.info(u"link %s", conf_file_path)
+    link_conf(conf_file_path, os.path.join(rsyslog_conf_path, common.get_conf_file_name(conf_name)))
 
 
 def output_result(rsyslog_operate_type=""):
