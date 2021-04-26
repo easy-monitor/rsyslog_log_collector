@@ -15,34 +15,43 @@ user_pre_check_script_type: shell
 user_check_script: ""
 user_check_script_type: shell
 stop_script: "#!/usr/local/easyops/python/bin/python\n# _*_coding: utf-8_*_\n\nimport
-  os\nimport subprocess\nimport yaml\nimport glob\nimport hashlib\n\n\nrestart_cmd
-  = os.environ.get(\"EASYOPS_COLLECTOR_restart_cmd\")\ncollector_name = os.environ.get(\"EASYOPS_COLLECTOR_collector_name\")\nrsyslog_conf_path
-  = os.environ.get(\"EASYOPS_COLLECTOR_rsyslog_conf_path\")\n\nRSYSLOG_CONF_MD5_KEY
-  = \"rsyslog_conf_md5_map\"\n\nfile_prefix = u\"easyops_rsyslog_job_conf_{}_{}.conf\"\n\nrecord_file
-  = u\"src/conf_record/job_conf_*.ini\"\n\ndef load_conf_file(conf_record_file=\"job_conf.ini\"):\n
-  \   try:\n        with open(conf_record_file, \"r\") as f:\n            content
-  = f.read()\n            conf = yaml.load(content)\n            return conf\n    except
-  Exception as e:\n        print e.message\n        return {}\n\n\ndef run_cmd(command,
-  shell=False, close_fds=True):\n    proc = subprocess.Popen(\n        command,\n
-  \       close_fds=close_fds,  # only set to True when on Unix, for WIN compatibility\n
-  \       shell=shell,\n        stdout=subprocess.PIPE,\n        stderr=subprocess.PIPE,\n
-  \   )\n    proc.wait()\n    output, err = proc.communicate()\n\n    result = err
-  or output\n    return proc.returncode, result\n\n\ndef unlink_conf(dst_file):\n
+  os\nimport subprocess\nimport yaml\nimport glob\nimport hashlib\nimport fcntl\nimport
+  time\n\nrestart_cmd = os.environ.get(\"EASYOPS_COLLECTOR_restart_cmd\")\ncollector_name
+  = os.environ.get(\"EASYOPS_COLLECTOR_collector_name\")\nrsyslog_conf_path = os.environ.get(\"EASYOPS_COLLECTOR_rsyslog_conf_path\")\nEAYSOPS_PATH
+  = os.environ.get(\"EASYOPS_BASE_PATH\", \"\")\nif EAYSOPS_PATH == \"\":\n    EAYSOPS_PATH
+  = \"/usr/local/easyops\"\nPLUGIN_PATH = os.path.join(EAYSOPS_PATH, \"next_collector_plugins\")\n\nRSYSLOG_CONF_MD5_KEY
+  = \"rsyslog_conf_md5_map\"\n\nfile_prefix = u\"easyops_rsyslog_job_conf_{}_{}.conf\"\nlock_file
+  = os.path.join(PLUGIN_PATH, \".rsyslog_op.lock\")\nrecord_file = u\"src/conf_record/job_conf_*.ini\"\n\ndef
+  run_with_filelock(lock_file):\n    def deco(func):\n        def run(*args, ** kwargs):\n
+  \           file = open(file_path, \"r+\")\n            for i in range(3):\n                try:\n
+  \                   fcntl.flock(file.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)\n
+  \                   print 'acquire lock'\n                    func(args, kwargs)\n
+  \                   break\n                except Exception as e:\n                    print
+  \"run error, will retry in 3s.\"\n                    time.sleep(3)\n\n            file.close()\n
+  \           print 'release lock'\n            return\n        return run\n    return
+  deco\n\n  \ndef load_conf_file(conf_record_file=\"job_conf.ini\"):\n    try:\n        with
+  open(conf_record_file, \"r\") as f:\n            content = f.read()\n            conf
+  = yaml.load(content)\n            return conf\n    except Exception as e:\n        print
+  e.message\n        return {}\n\n\ndef run_cmd(command, shell=False, close_fds=True):\n
+  \   proc = subprocess.Popen(\n        command,\n        close_fds=close_fds,  #
+  only set to True when on Unix, for WIN compatibility\n        shell=shell,\n        stdout=subprocess.PIPE,\n
+  \       stderr=subprocess.PIPE,\n    )\n    proc.wait()\n    output, err = proc.communicate()\n\n
+  \   result = err or output\n    return proc.returncode, result\n\n\ndef unlink_conf(dst_file):\n
   \   return run_cmd(\"rm -f {}\".format(dst_file), shell=True)\n\n\ndef get_conf_file_name(name):\n
-  \   return os.path.join(name + \".conf\")\n\n\ndef restart_rsyslog(cmd=\"service
-  rsyslog restart\"):\n    return run_cmd(cmd, shell=True)\n\n\ndef get_all_file(file_regex):\n
-  \   return glob.glob(file_regex)\n\n\ndef get_md5(content):\n    hl = hashlib.md5()\n
-  \   hl.update(content.encode(encoding='utf-8'))\n    return hl.hexdigest()\n\n\ndef
-  run():\n    real_restart_cmd = \"\"\n    for file_name in get_all_file(record_file):\n
-  \       recorded_conf = load_conf_file(file_name)\n        job_id = recorded_conf.get(\"job_id\",
-  \"\")\n        conf_map = recorded_conf.get(RSYSLOG_CONF_MD5_KEY, collector_name)\n
-  \       real_restart_cmd = recorded_conf.get(\"restart_cmd\", restart_cmd)\n        real_rsyslog_conf_path
-  = recorded_conf.get(\"rsyslog_conf_path\", restart_cmd)\n        for file_name,
-  md5_map in conf_map.iteritems():\n            for ip, md5 in md5_map.iteritems():\n
-  \               conf_name = file_prefix.format(job_id, get_md5(file_name))\n                \n
-  \               conf_file = os.path.join(real_rsyslog_conf_path, conf_name)\n                print
-  \"will delete conf {} gen by file {}, ip {}\".format(conf_file, file_name, ip)\n
-  \               print unlink_conf(conf_file)\n    print restart_rsyslog(real_restart_cmd)\n\n\nif
+  \   return os.path.join(name + \".conf\")\n\n@run_with_filelock(lock_file)\ndef
+  restart_rsyslog(cmd=\"service rsyslog restart\", *args, **kwargs):\n    return run_cmd(cmd,
+  shell=True)\n\n\ndef get_all_file(file_regex):\n    return glob.glob(file_regex)\n\n\ndef
+  get_md5(content):\n    hl = hashlib.md5()\n    hl.update(content.encode(encoding='utf-8'))\n
+  \   return hl.hexdigest()\n\n\ndef run():\n    real_restart_cmd = \"\"\n    for
+  file_name in get_all_file(record_file):\n        recorded_conf = load_conf_file(file_name)\n
+  \       job_id = recorded_conf.get(\"job_id\", \"\")\n        conf_map = recorded_conf.get(RSYSLOG_CONF_MD5_KEY,
+  collector_name)\n        real_restart_cmd = recorded_conf.get(\"restart_cmd\", restart_cmd)\n
+  \       real_rsyslog_conf_path = recorded_conf.get(\"rsyslog_conf_path\", restart_cmd)\n
+  \       for file_name, md5_map in conf_map.iteritems():\n            for ip, md5
+  in md5_map.iteritems():\n                conf_name = file_prefix.format(job_id,
+  get_md5(file_name))\n                \n                conf_file = os.path.join(real_rsyslog_conf_path,
+  conf_name)\n                print \"will delete conf {} gen by file {}, ip {}\".format(conf_file,
+  file_name, ip)\n                print unlink_conf(conf_file)\n    print restart_rsyslog(real_restart_cmd)\n\n\nif
   __name__ == \"__main__\":\n    run()\n"
 stop_script_type: python
 monitor_script: ""

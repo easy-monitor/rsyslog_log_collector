@@ -42,6 +42,7 @@ $ModLoad imfile
 $InputFileName  {collect_file}
 $InputFileTag {input_tag}
 $InputFileSeverity info 
+$InputFileStateFile  {rsyslog_file_state_file}
 $InputRunFileMonitor
 $MaxMessageSize {message_size}
 
@@ -70,26 +71,27 @@ def restart_rsyslog(cmd="service rsyslog restart", *args, **kwargs):
 
 
 def kill_all_rsyslog():
-    cmd = " ps -fC rsyslogd | grep -v 'grep' | grep -v 'next_collector_plugins' | awk '{print $2}' | xargs kill "
+    cmd = " ps -fC rsyslogd  --no-headers | grep -v 'grep' | grep -v 'next_collector_plugins' | awk '{print $2}' | xargs kill "
     return cmd_util.run_cmd(cmd, shell=True)
 
 
 def check_rsyslog_proc_num():
-    cmd = " ps -fC rsyslogd | grep -v 'grep' | grep -v 'next_collector_plugins' "
+    cmd = " ps -fC rsyslogd   --no-headers | grep -v 'grep' | grep -v 'next_collector_plugins' "
     return cmd_util.run_cmd(cmd, shell=True)
 
 
-def generate_conf(server_ips, one_file):
+def generate_conf(job_id, server_ips, one_file):
     conf_map = {}
     for ip in server_ips:
         try:
-            tag = "{}-{}".format(common.get_job_id_from_path(), common.get_md5(one_file))
+            tag = "{}-{}".format(job_id, common.get_md5(one_file))
             conf_map[ip] = rsyslog_conf_tpl.format(
                 collect_file=one_file,
                 input_tag=tag,
                 template_name=tag,
                 easyops_server_ip=ip,
                 easyops_server_port=easyops_server_port,
+                rsyslog_file_state_file="state_" + tag,
                 business_id=business_id,
                 business_name=business_name.decode("utf-8"),
                 app_name=app_name.decode("utf-8"),
@@ -157,7 +159,7 @@ def run():
 
     # rsyslog 配置map
     for file_name in collect_file.split(","):
-        conf_map[file_name] = generate_conf(server_ips, file_name)
+        conf_map[file_name] = generate_conf(job_id or common.get_job_id_from_path(), server_ips, file_name)
 
     # rsyslog 配置md5 map
     total_conf, new_conf, expire_conf = check_conf_change(conf_map)
@@ -231,7 +233,7 @@ def run():
                 if len(proc_num) > 1:
                     logging.info("proc num %s > 1, will kill rsyslog process", len(proc_num))
                     kill_all_rsyslog()
-
+                    time.sleep(3)
                     logging.info("proc num %s > 1, will restart again", len(proc_num))
                     restart_rsyslog(restart_cmd)
                 else:
